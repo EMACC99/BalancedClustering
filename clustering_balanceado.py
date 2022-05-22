@@ -132,7 +132,7 @@ if __name__ == '__main__':
     config.annealing_iterations = 250
     config.early_terminator_window = 15
 
-    morelos = pd.read_csv("INEGI_morelos.csv")
+    morelos = pd.read_csv("data/INEGI_morelos.csv")
     morelos.sort_values(by = ['lat'], inplace = True)
 
     problem = Clustering_Balandeado(morelos)
