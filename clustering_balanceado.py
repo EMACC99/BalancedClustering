@@ -4,6 +4,8 @@ import pandas as pd
 import funciones_paralelas as fp
 import queue
 import multiprocessing as mp
+
+from datetime import datetime
 from pyAMOSA.AMOSA import *
 from typing import Union, List, Tuple
 from classes import centroide
@@ -22,6 +24,8 @@ class Clustering_Balandeado(AMOSA.Problem):
         
         self.__A = np.column_stack((df["lat"], df["lon"], df['demanda']))
 
+        self.calc_ranges()
+
         super().__init__(num_of_variables=2*k, 
                         types = [AMOSA.Type.REAL] * 2*k, 
                         lower_bounds = [df["lat"].iloc[0], df['lon'].iloc[0]] * k, 
@@ -29,18 +33,35 @@ class Clustering_Balandeado(AMOSA.Problem):
                         num_of_objectives = 2,
                         num_of_constraints = 0)
 
+    def calc_ranges(self):
+        size = self.A.shape[0]
+        residuo = size%mp.cpu_count()
+        paso = size//mp.cpu_count()
+        rangos = [_ for _ in range(0, size, paso)]
+        rangos = rangos[1:]    
+        for ix, elem in enumerate(rangos):
+            rangos[ix] += residuo
+
+        tuplas = [(0, rangos[0])]
+
+        for ix in range(len(rangos) -1):
+            tuplas.append((rangos[ix] + 1, rangos[ix + 1]))
+        
+        self.rangos = tuplas
 
     def eval_std_dist(self, centorides : List[centroide]) -> float:
         dists = []
         threads = []
         q = queue.Queue()
 
-        for c in centorides: 
+        for c in centorides:
+            aux = np.array(c.puntos.copy())
+            
             # sums = 0
             # for i in range(1, len(c.puntos)):
             #     sums += fp.distancia(c.puntos[i - 1] , c.puntos[i])
             # dists.append(sums)
-            t = Thread(target=fp.calc_intra_point_distance, args=[c.puntos, q])
+            t = Thread(target=fp.calc_intra_point_distance, args=[aux, q])
             t.start()
             threads.append(t)
 
@@ -78,23 +99,13 @@ class Clustering_Balandeado(AMOSA.Problem):
         centroides = []
         for i in range(1, len(x), 2):
             centroides.append(centroide(x[i - 1], x[i]))
-        size = self.A.shape[0]
-        residuo = size%mp.cpu_count()
-        paso = size//mp.cpu_count()
-        rangos = [_ for _ in range(0, size, paso)]
-        rangos = rangos[1:]    
-        for ix, elem in enumerate(rangos):
-            rangos[ix] += residuo
-
-        tuplas = [(0, rangos[0])]
-
-        for ix in range(len(rangos) -1):
-            tuplas.append((rangos[ix] + 1, rangos[ix + 1]))
-
+        
         threads = []
         q = queue.Queue()
-        for elem in tuplas:
-            t = Thread(target=fp.calc_closest_centroid, args=[self.A[elem[0] : elem[1]], centroides ,q])
+
+        centroides_coords = [(c.x,c.y) for c in centroides]
+        for elem in self.rangos:
+            t = Thread(target=fp.calc_closest_centroid, args=[self.A[elem[0] : elem[1]], centroides_coords ,q])
             t.start()
             threads.append(t)
 
@@ -109,6 +120,7 @@ class Clustering_Balandeado(AMOSA.Problem):
         for ix,elem in enumerate(indices):
             a = self.A[ix]
             centroides[elem].puntos.append((a[0], a[1]))
+            centroides[elem].capacidades.append(a[2])
 
         f1 = self.eval_std_dist(centroides)
         f2 = self.eval_std_weight(centroides)
@@ -122,12 +134,12 @@ class Clustering_Balandeado(AMOSA.Problem):
 
 if __name__ == '__main__':
     config = AMOSAConfig
-    config.archive_hard_limit = 20
-    config.archive_soft_limit = 75
+    config.archive_hard_limit = 5
+    config.archive_soft_limit = 10
     config.archive_gamma = 1
-    config.hill_climbing_iterations = 250
-    config.initial_temperature = 500
-    config.final_temperature = 0.000001
+    config.hill_climbing_iterations = 25
+    config.initial_temperature = 50
+    config.final_temperature = 1
     config.cooling_factor = 0.9
     config.annealing_iterations = 250
     config.early_terminator_window = 15
@@ -144,6 +156,7 @@ if __name__ == '__main__':
     stats = pstats.Stats(pr)
     stats.sort_stats(pstats.SortKey.TIME)
     stats.print_stats()
-    stats.dump_stats("profiler.prof")
+    dt_string = datetime.now().strftime("%d%m%Y%H:%M")
+    stats.dump_stats(f"profiler_{dt_string}.prof")
     optimizer.save_results(problem, "clustering.csv")
     # optimizer.plot_pareto(problem, "clustering.pdf")
