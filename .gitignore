@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Profiler
+*.prof
+
+#Debuging stuff
+cython_debug/
