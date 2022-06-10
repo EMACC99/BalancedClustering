@@ -1,3 +1,6 @@
+import pyximport
+pyximport.install(pyimport=True)
+
 import cProfile
 import pstats
 import pandas as pd
@@ -22,9 +25,15 @@ from threading import Thread
 class Clustering_Balandeado(AMOSA.Problem):
     def __init__(self, df : pd.DataFrame, *, k = 4):
         
-        self.__A = np.column_stack((df["lat"], df["lon"], df['demanda']))
+        self.A : np.ndarray = np.column_stack((df["lat"], df["lon"], df['demanda']))
 
-        self.calc_ranges()
+        self.calc_matrix_ranges()
+        
+        if k > mp.cpu_count():
+            self.calc_cluster_ranges(k)
+            self.eval_std_dist = self.eval_std_weight_less_cpu
+        else:
+            self.eval_std_dist = self.eval_std_dist_more_cpu
 
         super().__init__(num_of_variables=2*k, 
                         types = [AMOSA.Type.REAL] * 2*k, 
@@ -33,7 +42,22 @@ class Clustering_Balandeado(AMOSA.Problem):
                         num_of_objectives = 2,
                         num_of_constraints = 0)
 
-    def calc_ranges(self):
+    def calc_cluster_ranges(self,k):
+        residuo = k%mp.cpu_count()
+        paso = k//mp.cpu_count()
+        rangos = [_ for _ in range(0, k, paso)]
+        for ix, elem in enumerate(rangos):
+            rangos[ix] += residuo
+
+        tuplas = [(0, rangos[0])]
+
+        for ix in range(len(rangos) -1):
+            tuplas.append((rangos[ix] + 1, rangos[ix + 1]))
+        
+        self.rangos_cluster = tuplas
+
+
+    def calc_matrix_ranges(self):
         size = self.A.shape[0]
         residuo = size%mp.cpu_count()
         paso = size//mp.cpu_count()
@@ -49,9 +73,9 @@ class Clustering_Balandeado(AMOSA.Problem):
         
         self.rangos = tuplas
 
-    def eval_std_dist(self, centorides : List[centroide]) -> float:
+    def eval_std_dist_more_cpu(self, centorides : List[centroide]) -> float: #pasarla a c porque estoy gastando mucho tiempo en wait
         dists = []
-        threads = []
+        threads : List[Thread] = []
         q = queue.Queue()
 
         for c in centorides:
@@ -72,11 +96,34 @@ class Clustering_Balandeado(AMOSA.Problem):
             dists.append(q.get())
 
         return np.std(dists)
-    
-    def eval_std_weight(self, centroides : List[centroide]) -> float:
+
+    def eval_std_weight_less_cpu(self, centroides : List[centroide]) -> float:
+        dists = []
+        threads : List[Thread] = []
+
+        q = queue.Queue()
+        puntos = [c.puntos for c in centroides]
+
+        
+        for elem in self.rangos_cluster:
+            t = Thread(target=fp.calc_intra_point_distance, args=[puntos[elem[0] : elem[1]], q])
+        
+
+
+    def eval_std_weight(self, centroides : List[centroide]) -> float: #esta tambien la tengo que pasar a C
         demandas = []
+
+        # threads = []
+        # q = queue.Queue()
         for c in centroides:
+            # t = Thread(target=fp.sum_cluster_weight, args=[c.capacidades, q])
+            # t.start()
+            # threads.append(t)
             demandas.append(np.sum(c.capacidades))
+
+        # while not q.empty():
+            # demandas.append(q.get())
+        assert (len(demandas) == len(centroides))
         return np.std(demandas)
     
     # def evaluate(self, x : list, out : dict):
@@ -96,11 +143,11 @@ class Clustering_Balandeado(AMOSA.Problem):
     #     out["f"] = [f1, f2]
 
     def evaluate(self, x : list, out : dict):
-        centroides = []
+        centroides : List[centroide] = []
         for i in range(1, len(x), 2):
             centroides.append(centroide(x[i - 1], x[i]))
         
-        threads = []
+        threads : List[Thread] = []
         q = queue.Queue()
 
         centroides_coords = [(c.x,c.y) for c in centroides]
@@ -127,9 +174,6 @@ class Clustering_Balandeado(AMOSA.Problem):
 
         out["f"] = [f1,f2]
 
-    @property
-    def A(self) -> np.ndarray:
-        return self.__A
 
 
 if __name__ == '__main__':
@@ -158,5 +202,5 @@ if __name__ == '__main__':
     stats.print_stats()
     dt_string = datetime.now().strftime("%d%m%Y%H:%M")
     stats.dump_stats(f"profiler_{dt_string}.prof")
-    optimizer.save_results(problem, "clustering.csv")
-    # optimizer.plot_pareto(problem, "clustering.pdf")
+    optimizer.save_results(problem, f"clustering_{dt_string}.csv")
+    optimizer.plot_pareto(problem, f"clustering_{dt_string}.pdf")
