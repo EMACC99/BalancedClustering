@@ -14,6 +14,8 @@ from typing import Union, List, Tuple
 from classes import centroide
 from threading import Thread
 
+from pymoo.factory import get_performance_indicator
+
 
 # def distancia(centroid : Union[centroide, Tuple[float, float]], punto : Tuple[float, float]) -> float :
 #     if isinstance(centroid, centroide):
@@ -204,3 +206,8 @@ if __name__ == '__main__':
     stats.dump_stats(f"profiler_{dt_string}.prof")
     optimizer.save_results(problem, f"clustering_{dt_string}.csv")
     optimizer.plot_pareto(problem, f"clustering_{dt_string}.pdf")
+
+    F = optimizer.pareto_front()
+
+    hv = get_performance_indicator("hv", ref_point = np.array([max(F[:, 0]) + 10, max(F[:, 1]) + 10]))
+    print(f"{hv = }")
