@@ -35,7 +35,7 @@ class Clustering_Balandeado(AMOSA.Problem):
         
         if k > mp.cpu_count():
             self.calc_cluster_ranges(k)
-            self.eval_std_dist = self.eval_std_weight_less_cpu
+            self.eval_std_dist = self.eval_std_dist_less_cpu
         else:
             self.eval_std_dist = self.eval_std_dist_more_cpu
 
@@ -101,7 +101,7 @@ class Clustering_Balandeado(AMOSA.Problem):
 
         return np.std(dists)
 
-    def eval_std_weight_less_cpu(self, centroides : List[centroide]) -> float:
+    def eval_std_dist_less_cpu(self, centroides : List[centroide]) -> float:
         dists = []
         threads : List[Thread] = []
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     except FileNotFoundError:
         print(f"El conjunto de datos {dataset} no fue encontrado, intente de nuevo")
         sys.exit()
-        
+
 
     morelos.sort_values(by = ['lat'], inplace = True)
 
