@@ -7,7 +7,9 @@ import pandas as pd
 import funciones_paralelas as fp
 import queue
 import multiprocessing as mp
+import sys
 
+from typing_extensions import Self
 from datetime import datetime
 from pyAMOSA.AMOSA import *
 from typing import Union, List, Tuple
@@ -25,7 +27,7 @@ from pymoo.factory import get_performance_indicator
 
 
 class Clustering_Balandeado(AMOSA.Problem):
-    def __init__(self, df : pd.DataFrame, *, k = 4):
+    def __init__(self, df : pd.DataFrame, *, k = 4) -> Self:
         
         self.A : np.ndarray = np.column_stack((df["lat"], df["lon"], df['demanda']))
 
@@ -190,7 +192,18 @@ if __name__ == '__main__':
     config.annealing_iterations = 250
     config.early_terminator_window = 15
 
-    morelos = pd.read_csv("data/INEGI_morelos.csv")
+    if len(sys.argv) == 2:
+        dataset = sys.argv[1] #solo morelos o hidalgo
+        dataset = f"INEGI_{dataset}.csv"
+    else:
+        dataset = "INEGI_morelos.csv"
+    try:
+        morelos = pd.read_csv(f"data/{dataset}")
+    except FileNotFoundError:
+        print(f"El conjunto de datos {dataset} no fue encontrado, intente de nuevo")
+        sys.exit()
+        
+
     morelos.sort_values(by = ['lat'], inplace = True)
 
     problem = Clustering_Balandeado(morelos)
