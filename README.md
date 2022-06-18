@@ -9,10 +9,14 @@ Clone the repo with `git clone --recursive` to clone the submodules
 Give permitions to the cython script with
 
 ```sh
-chmod +x build_cython.py
+chmod +x build_cython.sh
 ```
 
-and excecute it.
+and excecute it with
+
+```sh
+./build_cython.sh
+```
 
 Then just run the script with
 
