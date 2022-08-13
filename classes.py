@@ -1,8 +1,9 @@
 from typing import List
 from typing_extensions import Self
 
-class centroide():
-    def __init__(self,x :float,  y: float) -> Self:
+
+class centroide:
+    def __init__(self, x: float, y: float) -> Self:
         self.__x = x
         self.__y = y
         self.puntos = []
