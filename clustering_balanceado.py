@@ -135,23 +135,11 @@ class Clustering_Balandeado(AMOSA.Problem):
         assert len(demandas) == len(centroides)
         return np.std(demandas)
 
-    # def evaluate(self, x : list, out : dict):
-    #     centroides : List[centroide] = []
-    #     for i in range(1, len(x), 2):
-    #         centroides.append(centroide(x[i - 1], x[i]))
+    def __one_centroid_changed(self, s: dict, s_old: dict):
+        nuevos_centroides = 12
 
-    #     for elem in self.__A: #la parte de calcular estas cosas es lo que se esta tardando, tengo que paralelizarla
-    #         dist = [distancia(c, (elem[0], elem[1])) for c in centroides] ## O^2, la parte que podria paralelizar es esta
-    #         ix = dist.index(min(dist))
-    #         centroides[ix].puntos.append((elem[0], elem[1]))
-    #         centroides[ix].capacidades.append(elem[2])
-
-    #     f1 = self.eval_std_dist(centroides)
-    #     f2 = self.eval_std_weight(centroides)
-
-    #     out["f"] = [f1, f2]
-
-    def evaluate(self, x: list, out: dict):
+    def __calc_all_centroids(self, s: dict):
+        x = s["x"]
         centroides: List[centroide] = []
         for i in range(1, len(x), 2):
             centroides.append(centroide(x[i - 1], x[i]))
@@ -181,8 +169,45 @@ class Clustering_Balandeado(AMOSA.Problem):
             centroides[elem].puntos.append((a[0], a[1]))
             centroides[elem].capacidades.append(a[2])
 
-        f1 = self.eval_std_dist(centroides)
-        f2 = self.eval_std_weight(centroides)
+        return self.eval_std_dist(centroides), self.eval_std_weight(centroides)
+
+    def evaluate(self, s: dict, out: dict, s_old: dict = None):
+        if s_old is not None:
+            f1, f2 = self.__one_centroid_changed(s, s_old)
+
+        else:
+            f1, f2 = self.__calc_all_centroids(s)
+        # centroides: List[centroide] = []
+        # for i in range(1, len(x), 2):
+        #     centroides.append(centroide(x[i - 1], x[i]))
+
+        # threads: List[Thread] = []
+        # q = queue.Queue()
+
+        # centroides_coords = [(c.x, c.y) for c in centroides]
+        # for elem in self.rangos:
+        #     t = Thread(
+        #         target=fp.calc_closest_centroid,
+        #         args=[self.A[elem[0] : elem[1]], centroides_coords, q],
+        #     )
+        #     t.start()
+        #     threads.append(t)
+
+        # for t in threads:
+        #     t.join()
+
+        # indices = []
+        # while not q.empty():
+        #     for elem in q.get():
+        #         indices.append(elem)
+
+        # for ix, elem in enumerate(indices):
+        #     a = self.A[ix]
+        #     centroides[elem].puntos.append((a[0], a[1]))
+        #     centroides[elem].capacidades.append(a[2])
+
+        # f1 = self.eval_std_dist(centroides)
+        # f2 = self.eval_std_weight(centroides)
 
         out["f"] = [f1, f2]
 
@@ -213,7 +238,7 @@ if __name__ == "__main__":
     morelos.sort_values(by=["lat"], inplace=True)
 
     problem = Clustering_Balandeado(morelos)
-    optimizer = AMOSA(config)
+    optimizer = AMOSA.from_config(config)
 
     with cProfile.Profile() as pr:
         optimizer.minimize(problem)
