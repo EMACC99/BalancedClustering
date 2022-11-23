@@ -16,7 +16,7 @@ class centroide:
         return self.__x == other.__x and self.__y == other.__y
 
     def __ne__(self, other: object) -> bool:
-        return not self.__eq__(self, other)
+        return not self.__eq__(other)
 
     @property
     def x(self) -> float:
