@@ -20,13 +20,27 @@ def calc_intra_point_distance_no_cpu(lista_puntos, q):
             
 
 
-def calc_closest_centroid(A, centroides, q):
-    closest_centroid = []
+def initialize_distance_matrix(A, centroides, q):
+    distance_to_centroids = []
     for elem in A:
-        dist = [np.sqrt((c[0] - elem[0])**2 + (c[1] - elem[1])**2) for c in centroides]
-        closest_centroid.append(dist.index(min(dist)))
+        distance_to_centroids.append([np.sqrt((c[0] - elem[0])**2 + (c[1] - elem[1])**2) for c in centroides])
+
+    q.put(distance_to_centroids)    
+
+
+def get_closest_centroid(distance_to_centroids, q):
+    closest_centroid = []
+    for elem in distance_to_centroids:
+        closest_centroid.append(np.argmin(elem))
     
     q.put(closest_centroid)
+
+def calc_distance_to_centroid(A, centroid, q):
+    distance_to_centroid = []
+    for elem in A:
+        distance_to_centroid.append(np.sqrt((centroid[0] - elem[0]) ** 2 + (centroid[1] - elem[1]) ** 2))
+
+    q.put(distance_to_centroid)
 
 def sum_cluster_weight(capacidades, q):
     q.put(np.sum(capacidades))
