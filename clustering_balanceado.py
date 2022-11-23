@@ -5,6 +5,7 @@ pyximport.install(pyimport=True)
 import cProfile
 import pstats
 import pandas as pd
+import numpy as np
 import funciones_paralelas as fp
 import queue
 import multiprocessing as mp
@@ -16,7 +17,6 @@ from pyAMOSA.AMOSA import *
 from typing import Union, List, Tuple
 from classes import centroide
 from threading import Thread
-
 from pymoo.factory import get_performance_indicator
 
 
@@ -28,14 +28,23 @@ from pymoo.factory import get_performance_indicator
 
 
 class Clustering_Balandeado(AMOSA.Problem):
-    def __init__(self, df: pd.DataFrame, *, k=4) -> Self:
+    def __init__(self, df: pd.DataFrame, *, k=4) -> None:
 
         self.A: np.ndarray = np.column_stack((df["lat"], df["lon"], df["demanda"]))
 
-        self.calc_matrix_ranges()
+        self.distance_matrix: Union[list, np.ndarray] = []
+
+        self.current_centroids: List[centroide] = []  # la sol actual
+        self.new_centroids: List[centroide] = []  # la nueva sol
+        self.changed_centroid_ix: int = -1  # quien cambio
+        self.__changed_centroid_col: Union[list, np.ndarray] = []  # su nueva distancia
+
+        self.initialize_archive = True
+
+        self.__calc_matrix_ranges()
 
         if k > mp.cpu_count():
-            self.calc_cluster_ranges(k)
+            self.__calc_cluster_ranges(k)
             self.eval_std_dist = self.eval_std_dist_less_cpu
         else:
             self.eval_std_dist = self.eval_std_dist_more_cpu
@@ -49,7 +58,7 @@ class Clustering_Balandeado(AMOSA.Problem):
             num_of_constraints=0,
         )
 
-    def calc_cluster_ranges(self, k):
+    def __calc_cluster_ranges(self, k):
         residuo = k % mp.cpu_count()
         paso = k // mp.cpu_count()
         rangos = [_ for _ in range(0, k, paso)]
@@ -63,7 +72,7 @@ class Clustering_Balandeado(AMOSA.Problem):
 
         self.rangos_cluster = tuplas
 
-    def calc_matrix_ranges(self):
+    def __calc_matrix_ranges(self):
         size = self.A.shape[0]
         residuo = size % mp.cpu_count()
         paso = size // mp.cpu_count()
@@ -84,15 +93,11 @@ class Clustering_Balandeado(AMOSA.Problem):
     ) -> float:  # pasarla a c porque estoy gastando mucho tiempo en wait
         dists = []
         threads: List[Thread] = []
-        q = queue.Queue()
+        q: queue.Queue = queue.Queue()
 
         for c in centorides:
             aux = np.array(c.puntos.copy())
 
-            # sums = 0
-            # for i in range(1, len(c.puntos)):
-            #     sums += fp.distancia(c.puntos[i - 1] , c.puntos[i])
-            # dists.append(sums)
             t = Thread(target=fp.calc_intra_point_distance, args=[aux, q])
             t.start()
             threads.append(t)
@@ -122,36 +127,38 @@ class Clustering_Balandeado(AMOSA.Problem):
     ) -> float:  # esta tambien la tengo que pasar a C
         demandas = []
 
-        # threads = []
-        # q = queue.Queue()
         for c in centroides:
-            # t = Thread(target=fp.sum_cluster_weight, args=[c.capacidades, q])
-            # t.start()
-            # threads.append(t)
             demandas.append(np.sum(c.capacidades))
 
-        # while not q.empty():
-        # demandas.append(q.get())
         assert len(demandas) == len(centroides)
         return np.std(demandas)
 
-    def __one_centroid_changed(self, s: dict, s_old: dict):
-        nuevos_centroides = 12
+    def update_distance_matrix(self):  # cambio la sol
+        self.distance_matrix[:, self.changed_centroid_ix] = self.__changed_centroid_col
+        self.current_centroids = self.new_centroids
+        self.new_centroids = []
 
-    def __calc_all_centroids(self, s: dict):
+    def __get_modified_centroid(self, new_centroids: List[centroide]) -> int:
+        for ix, elem in enumerate(new_centroids):
+            if new_centroids[ix] != self.current_centroids[ix]:
+                return ix
+
+    def __one_centroid_changed(self, s: dict):
         x = s["x"]
-        centroides: List[centroide] = []
         for i in range(1, len(x), 2):
-            centroides.append(centroide(x[i - 1], x[i]))
+            self.new_centroids.append(centroide(x[i - 1], x[i]))
+
+        self.changed_centroid_ix = self.__get_modified_centroid(self.new_centroids)
+        changed_centroid = self.new_centroids[self.changed_centroid_ix]
 
         threads: List[Thread] = []
         q = queue.Queue()
+        target = fp.calc_distance_to_centroid
 
-        centroides_coords = [(c.x, c.y) for c in centroides]
-        for elem in self.rangos:
+        for _ in self.rangos:
             t = Thread(
-                target=fp.calc_closest_centroid,
-                args=[self.A[elem[0] : elem[1]], centroides_coords, q],
+                target=target,
+                args=[self.A[_[0] : _[1]], [changed_centroid.x, changed_centroid.y], q],
             )
             t.start()
             threads.append(t)
@@ -159,55 +166,102 @@ class Clustering_Balandeado(AMOSA.Problem):
         for t in threads:
             t.join()
 
-        indices = []
         while not q.empty():
-            for elem in q.get():
-                indices.append(elem)
+            self.__changed_centroid_col.append(q.get())
 
-        for ix, elem in enumerate(indices):
+        aux_distance_matrix = np.zeros_like(self.distance_matrix)
+
+        aux_distance_matrix[:, : self.changed_centroid_ix] = self.distance_matrix[
+            :, : self.changed_centroid_ix
+        ]
+        aux_distance_matrix[:, self.changed_centroid_ix] = self.__changed_centroid_col
+        aux_distance_matrix[:, self.changed_centroid_ix :] = self.distance_matrix[
+            :, self.changed_centroid_ix :
+        ]
+        q = queue.Queue()
+        target = fp.get_closest_centroid
+        threads = []
+        closest_centroids = []
+
+        for _ in self.rangos:
+            t = Thread(target=target, args=[aux_distance_matrix[_[0], _[1]], q])
+            t.start()
+            threads.append(t)
+
+        while not q.empty():
+            closest_centroids.append(q.get())
+
+        for ix, elem in enumerate(closest_centroids):
             a = self.A[ix]
-            centroides[elem].puntos.append((a[0], a[1]))
-            centroides[elem].capacidades.append(a[2])
+            self.new_centroids[elem].puntos.append((a[0], a[1]))
+            self.new_centroids[elem].capacidades.append(a[2])
 
-        return self.eval_std_dist(centroides), self.eval_std_weight(centroides)
+        return self.eval_std_dist(self.new_centroids), self.eval_std_weight(
+            self.new_centroids
+        )
 
-    def evaluate(self, s: dict, out: dict, s_old: dict = None):
-        if s_old is not None:
-            f1, f2 = self.__one_centroid_changed(s, s_old)
+    def __calc_all_centroids(self, s: dict):
+        x = s["x"]
+        for i in range(1, len(x), 2):
+            self.current_centroids.append(centroide(x[i - 1], x[i]))
 
-        else:
+        threads: List[Thread] = []
+        q = queue.Queue()
+
+        centroides_coords = [(c.x, c.y) for c in self.current_centroids]
+        target = fp.initialize_distance_matrix
+
+        for _ in self.rangos:
+            t = Thread(target=target, args=[self.A[_[0] : _[1]], centroides_coords, q])
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        while not q.empty():
+            self.distance_matrix.extend(q.get())
+
+        q = queue.Queue()
+
+        target = fp.get_closest_centroid
+
+        threads = []
+
+        closest_centroids = []
+
+        for _ in self.rangos:
+            t = Thread(target=target, args=[self.distance_matrix[_[0] : _[1]], q])
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        while not q.empty():
+            closest_centroids.extend(q.get())
+
+        for ix, elem in enumerate(closest_centroids):
+            a = self.A[ix]
+            self.current_centroids[elem].puntos.append((a[0], a[1]))
+            self.current_centroids[elem].capacidades.append(a[2])
+
+        self.distance_matrix = np.array(self.distance_matrix)
+
+        return self.eval_std_dist(self.current_centroids), self.eval_std_weight(
+            self.current_centroids
+        )
+
+    def evaluate(self, s: dict, out: dict):
+        if self.initialize_archive:
+            self.distance_matrix = []
             f1, f2 = self.__calc_all_centroids(s)
-        # centroides: List[centroide] = []
-        # for i in range(1, len(x), 2):
-        #     centroides.append(centroide(x[i - 1], x[i]))
+        else:
+            if isinstance(self.distance_matrix, np.ndarray):
+                f1, f2 = self.__one_centroid_changed(s)
 
-        # threads: List[Thread] = []
-        # q = queue.Queue()
-
-        # centroides_coords = [(c.x, c.y) for c in centroides]
-        # for elem in self.rangos:
-        #     t = Thread(
-        #         target=fp.calc_closest_centroid,
-        #         args=[self.A[elem[0] : elem[1]], centroides_coords, q],
-        #     )
-        #     t.start()
-        #     threads.append(t)
-
-        # for t in threads:
-        #     t.join()
-
-        # indices = []
-        # while not q.empty():
-        #     for elem in q.get():
-        #         indices.append(elem)
-
-        # for ix, elem in enumerate(indices):
-        #     a = self.A[ix]
-        #     centroides[elem].puntos.append((a[0], a[1]))
-        #     centroides[elem].capacidades.append(a[2])
-
-        # f1 = self.eval_std_dist(centroides)
-        # f2 = self.eval_std_weight(centroides)
+            else:
+                f1, f2 = self.__calc_all_centroids(s)
 
         out["f"] = [f1, f2]
 
