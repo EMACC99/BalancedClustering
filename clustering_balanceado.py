@@ -167,7 +167,7 @@ class Clustering_Balandeado(AMOSA.Problem):
             t.join()
 
         while not q.empty():
-            self.__changed_centroid_col.append(q.get())
+            self.__changed_centroid_col.extend(q.get())
 
         aux_distance_matrix = np.zeros_like(self.distance_matrix)
 
