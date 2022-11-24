@@ -254,9 +254,9 @@ class Clustering_Balandeado(AMOSA.Problem):
 
     def evaluate(self, s: dict, out: dict):
         if self.initialize_archive:
+            f1, f2 = self.__calc_all_centroids(s)
             self.current_centroids = []
             self.distance_matrix = []
-            f1, f2 = self.__calc_all_centroids(s)
         else:
             if isinstance(self.distance_matrix, np.ndarray):
                 f1, f2 = self.__one_centroid_changed(s)
