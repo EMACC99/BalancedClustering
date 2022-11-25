@@ -137,7 +137,7 @@ class Clustering_Balandeado(AMOSA.Problem):
         self.distance_matrix[:, self.changed_centroid_ix] = self.__changed_centroid_col
         self.current_centroids = self.new_centroids
         self.new_centroids = []
-        self.__changed_centroid_col = [] 
+        self.__changed_centroid_col = []
 
     def __get_modified_centroid(self, new_centroids: List[centroide]) -> int:
         for ix, elem in enumerate(new_centroids):
@@ -190,6 +190,9 @@ class Clustering_Balandeado(AMOSA.Problem):
             t = Thread(target=target, args=[aux_distance_matrix[_[0] : _[1]], q])
             t.start()
             threads.append(t)
+
+        for t in threads:
+            t.join()
 
         while not q.empty():
             closest_centroids.extend(q.get())
@@ -304,7 +307,7 @@ if __name__ == "__main__":
     stats = pstats.Stats(pr)
     stats.sort_stats(pstats.SortKey.TIME)
     stats.print_stats()
-    dt_string = datetime.now().strftime("%d%m%Y%H:%M")
+    dt_string = datetime.now().strftime("%d%m%Y%H%M")
     stats.dump_stats(f"profiler_{dt_string}.prof")
     optimizer.save_results(problem, f"clustering_{dt_string}.csv")
     optimizer.plot_pareto(problem, f"clustering_{dt_string}.pdf")
