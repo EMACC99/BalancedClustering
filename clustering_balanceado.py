@@ -137,6 +137,7 @@ class Clustering_Balandeado(AMOSA.Problem):
         self.distance_matrix[:, self.changed_centroid_ix] = self.__changed_centroid_col
         self.current_centroids = self.new_centroids
         self.new_centroids = []
+        self.__changed_centroid_col = [] 
 
     def __get_modified_centroid(self, new_centroids: List[centroide]) -> int:
         for ix, elem in enumerate(new_centroids):
@@ -144,6 +145,8 @@ class Clustering_Balandeado(AMOSA.Problem):
                 return ix
 
     def __one_centroid_changed(self, s: dict):
+        self.new_centroids = []
+        self.__changed_centroid_col = []
         x = s["x"]
         for i in range(1, len(x), 2):
             self.new_centroids.append(centroide(x[i - 1], x[i]))
@@ -184,12 +187,12 @@ class Clustering_Balandeado(AMOSA.Problem):
         closest_centroids = []
 
         for _ in self.rangos:
-            t = Thread(target=target, args=[aux_distance_matrix[_[0], _[1]], q])
+            t = Thread(target=target, args=[aux_distance_matrix[_[0] : _[1]], q])
             t.start()
             threads.append(t)
 
         while not q.empty():
-            closest_centroids.append(q.get())
+            closest_centroids.extend(q.get())
 
         for ix, elem in enumerate(closest_centroids):
             a = self.A[ix]
