@@ -2,29 +2,16 @@ import pyximport
 
 pyximport.install(pyimport=True)
 
-import cProfile
-import pstats
 import pandas as pd
 import numpy as np
 import funciones_paralelas as fp
 import queue
 import multiprocessing as mp
-import sys
 
-from typing_extensions import Self
-from datetime import datetime
-from pyAMOSA.AMOSA import *
-from typing import Union, List, Tuple
+from pyAMOSA.AMOSA import AMOSA
+from typing import Union, List
 from classes import centroide
 from threading import Thread
-from pymoo.factory import get_performance_indicator
-
-
-# def distancia(centroid : Union[centroide, Tuple[float, float]], punto : Tuple[float, float]) -> float :
-#     if isinstance(centroid, centroide):
-#         return np.sqrt((centroid.x - punto[0])**2 + (centroid.y - punto[1])**2)
-#     elif isinstance(centroid, Tuple):
-#         return np.sqrt((centroid[0] - punto[0])**2 + (centroid[1] - punto[1])**2)
 
 
 class Clustering_Balandeado(AMOSA.Problem):
@@ -271,50 +258,3 @@ class Clustering_Balandeado(AMOSA.Problem):
                 f1, f2 = self.__calc_all_centroids(s)
 
         out["f"] = [f1, f2]
-
-
-if __name__ == "__main__":
-    config = AMOSAConfig
-    config.archive_hard_limit = 5
-    config.archive_soft_limit = 10
-    config.archive_gamma = 1
-    config.hill_climbing_iterations = 25
-    config.initial_temperature = 50
-    config.final_temperature = 1
-    config.cooling_factor = 0.9
-    config.annealing_iterations = 250
-    config.early_terminator_window = 15
-
-    if len(sys.argv) == 2:
-        dataset = sys.argv[1]  # solo morelos o hidalgo
-        dataset = f"INEGI_{dataset}.csv"
-    else:
-        dataset = "INEGI_morelos.csv"
-    try:
-        morelos = pd.read_csv(f"data/{dataset}")
-    except FileNotFoundError:
-        print(f"El conjunto de datos {dataset} no fue encontrado, intente de nuevo")
-        sys.exit()
-
-    morelos.sort_values(by=["lat"], inplace=True)
-
-    problem = Clustering_Balandeado(morelos)
-    optimizer = AMOSA.from_config(config)
-
-    with cProfile.Profile() as pr:
-        optimizer.minimize(problem)
-
-    stats = pstats.Stats(pr)
-    stats.sort_stats(pstats.SortKey.TIME)
-    stats.print_stats()
-    dt_string = datetime.now().strftime("%d%m%Y%H%M")
-    stats.dump_stats(f"profiler_{dt_string}.prof")
-    optimizer.save_results(problem, f"clustering_{dt_string}.csv")
-    optimizer.plot_pareto(problem, f"clustering_{dt_string}.pdf")
-
-    F = optimizer.pareto_front()
-
-    hv = get_performance_indicator(
-        "hv", ref_point=np.array([max(F[:, 0]) + 10, max(F[:, 1]) + 10])
-    )
-    print(f"{hv = }")
