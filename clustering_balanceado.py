@@ -18,6 +18,7 @@ class Clustering_Balandeado(AMOSA.Problem):
     def __init__(self, df: pd.DataFrame, *, k=4) -> None:
 
         self.A: np.ndarray = np.column_stack((df["lat"], df["lon"], df["demanda"]))
+        self.k = k
 
         self.distance_matrix: Union[list, np.ndarray] = []
 
