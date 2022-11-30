@@ -53,3 +53,19 @@ python main.py run <args>
 |`--iter`|Annealing iterations | `2500` | `False` |
 |`--cool`| Cooling factor | `0.9` | `False` |
 |`--win`| PHY-based early-termination window size | `10` | `False` |
+
+## Visualizing the profiler data
+
+To get a view of the profiler in an iteractive way, install the snakeviz python package, this can be done with
+
+```sh
+conda install -c conda-forge snakeviz
+```
+
+with anaconda.
+
+To visualize the profiling data run
+
+```sh
+snakeviz profiler_<...>.prof
+```
