@@ -42,6 +42,20 @@ def cli():
 )
 @click.option("-k", type=int, required=True, help="Number of centroids")
 @click.option("--data", type=str, required=True, help="path of the dataset to use")
+@click.option(
+    "--alpha",
+    type=float,
+    required=False,
+    default=1,
+    help="Modifier for the hill climber",
+)
+@click.option(
+    "--seed",
+    type=int,
+    required=False,
+    default=None,
+    help="seed for the random number generator",
+)
 def run(
     hard: int,
     soft: int,
@@ -54,6 +68,8 @@ def run(
     win: int,
     k: int,
     data: str,
+    alpha: float,
+    seed: int,
 ):
     config = AMOSAConfig
     config.archive_hard_limit = hard  # 5
@@ -65,11 +81,12 @@ def run(
     config.cooling_factor = cool  # 0.9
     config.annealing_iterations = iter  # 250
     config.early_terminator_window = win  # 15
+    config.random_seed = seed
 
     try:
         dataset = pd.read_csv(data)
     except FileNotFoundError:
-        print(f"El conjunto de datos {data} no fue encontrado, intente de nuevo")
+        print(f"El conjunto de datos {data} no fue encontrado")
         sys.exit()
 
     dataset.sort_values(by=["lat"], inplace=True)
