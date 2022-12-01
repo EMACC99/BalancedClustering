@@ -91,7 +91,7 @@ def run(
 
     dataset.sort_values(by=["lat"], inplace=True)
 
-    problem = Clustering_Balandeado(dataset, k=k)
+    problem = Clustering_Balandeado(dataset, k=k, alpha=alpha)
     optimizer = AMOSA.from_config(config)
 
     with cProfile.Profile() as pr:

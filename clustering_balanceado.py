@@ -15,7 +15,7 @@ from threading import Thread
 
 
 class Clustering_Balandeado(AMOSA.Problem):
-    def __init__(self, df: pd.DataFrame, *, k=4, alpha=1) -> None:
+    def __init__(self, df: pd.DataFrame, *, k=4, alpha : float =1.) -> None:
 
         self.A: np.ndarray = np.column_stack((df["lat"], df["lon"], df["demanda"]))
         self.k = k
