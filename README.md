@@ -53,6 +53,8 @@ python main.py run <args>
 |`--iter`|Annealing iterations | `2500` | `False` |
 |`--cool`| Cooling factor | `0.9` | `False` |
 |`--win`| PHY-based early-termination window size | `10` | `False` |
+|`--seed`| The seed for the RNG | `N\A` | `False` |
+|`--alpha`| Step modifier for the hill climber | `1` | `False` |
 
 ## Visualizing the profiler data
 
