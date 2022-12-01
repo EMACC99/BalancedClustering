@@ -15,7 +15,7 @@ from threading import Thread
 
 
 class Clustering_Balandeado(AMOSA.Problem):
-    def __init__(self, df: pd.DataFrame, *, k=4) -> None:
+    def __init__(self, df: pd.DataFrame, *, k=4, alpha=1) -> None:
 
         self.A: np.ndarray = np.column_stack((df["lat"], df["lon"], df["demanda"]))
         self.k = k
@@ -44,6 +44,7 @@ class Clustering_Balandeado(AMOSA.Problem):
             upper_bounds=[df["lat"].iloc[-1], df["lon"].iloc[-1]] * k,
             num_of_objectives=2,
             num_of_constraints=0,
+            alpha=alpha,
         )
 
     def __calc_cluster_ranges(self, k):
