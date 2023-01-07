@@ -90,7 +90,7 @@ def run(
         sys.exit()
 
     dataset.sort_values(by=["lat"], inplace=True)
-
+    dataset.drop_duplicates(subset=["lat", "lon"], inplace=True)
     problem = Clustering_Balandeado(dataset, k=k, alpha=alpha)
     optimizer = AMOSA.from_config(config)
 
