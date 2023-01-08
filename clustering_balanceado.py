@@ -15,7 +15,7 @@ from threading import Thread
 
 
 class Clustering_Balandeado(AMOSA.Problem):
-    def __init__(self, df: pd.DataFrame, *, k=4, alpha : float =1.) -> None:
+    def __init__(self, df: pd.DataFrame, *, k=4, alpha: float = 1.0) -> None:
 
         self.A: np.ndarray = np.column_stack((df["lat"], df["lon"], df["demanda"]))
         self.k = k
@@ -108,8 +108,19 @@ class Clustering_Balandeado(AMOSA.Problem):
 
         for elem in self.rangos_cluster:
             t = Thread(
-                target=fp.calc_intra_point_distance, args=[puntos[elem[0] : elem[1]], q]
+                target=fp.calc_intra_point_distance_no_cpu,
+                args=[puntos[elem[0] : elem[1]], q],
             )
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        while not q.empty():
+            dists.append(q.get())
+
+        return np.std(dists)
 
     def eval_std_weight(
         self, centroides: List[centroide]
