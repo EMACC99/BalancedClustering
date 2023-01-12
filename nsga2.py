@@ -16,7 +16,8 @@ from threading import Thread
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
-from pymoo.core.problem import Problem, ElementwiseProblem
+from pymoo.core.problem import Problem
+from pymoo.termination import get_termination
 
 
 class Clustering_Balandeado(Problem):
@@ -294,7 +295,8 @@ if __name__ == "__main__":
     problem = Clustering_Balandeado(df, k=4, n_var=8, n_obj=2)
 
     algorithm = NSGA2(pop_size=5)
-    res = minimize(problem, algorithm, "n_gen", seed=1, verbose=True)
+    termination = get_termination("n_gen", 50)
+    res = minimize(problem, algorithm, termination, seed=1, verbose=True)
 
     plot = Scatter()
     plot.add(problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
