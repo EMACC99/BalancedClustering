@@ -9,14 +9,14 @@ import queue
 import multiprocessing as mp
 import sys
 
-from typing import Union, List
+from typing import Union, List, Tuple
 from classes import centroide
 from threading import Thread
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
-from pymoo.core.problem import Problem
+from pymoo.core.problem import Problem, ElementwiseProblem
 
 
 class Clustering_Balandeado(Problem):
@@ -211,65 +211,70 @@ class Clustering_Balandeado(Problem):
             self.new_centroids
         )
 
-    def __calc_all_centroids(self, x: dict):
-        # x = s["x"]
-        for i in range(1, len(x), 2):
-            self.current_centroids.append(centroide(x[i - 1], x[i]))
+    def __calc_all_centroids(
+        self, sol: dict, *args, **kwargs
+    ) -> Tuple[List[float], List[float]]:
+        f1 = []
+        f2 = []
+        for x in sol:
+            for i in range(1, len(x), 2):
+                self.current_centroids.append(centroide(x[i - 1], x[i]))
 
-        threads: List[Thread] = []
-        q = queue.Queue()
+            threads: List[Thread] = []
+            q = queue.Queue()
 
-        centroides_coords = [(c.x, c.y) for c in self.current_centroids]
-        target = fp.initialize_distance_matrix
+            centroides_coords = [(c.x, c.y) for c in self.current_centroids]
+            target = fp.initialize_distance_matrix
 
-        for _ in self.rangos:
-            t = Thread(target=target, args=[self.A[_[0] : _[1]], centroides_coords, q])
-            t.start()
-            threads.append(t)
+            for _ in self.rangos:
+                t = Thread(
+                    target=target, args=[self.A[_[0] : _[1]], centroides_coords, q]
+                )
+                t.start()
+                threads.append(t)
 
-        for t in threads:
-            t.join()
+            for t in threads:
+                t.join()
 
-        while not q.empty():
-            self.distance_matrix.extend(q.get())
+            while not q.empty():
+                self.distance_matrix.extend(q.get())
 
-        q = queue.Queue()
+            q = queue.Queue()
 
-        target = fp.get_closest_centroid
+            target = fp.get_closest_centroid
 
-        threads = []
+            threads = []
 
-        closest_centroids = []
+            closest_centroids = []
 
-        for _ in self.rangos:
-            t = Thread(target=target, args=[self.distance_matrix[_[0] : _[1]], q])
-            t.start()
-            threads.append(t)
+            for _ in self.rangos:
+                t = Thread(target=target, args=[self.distance_matrix[_[0] : _[1]], q])
+                t.start()
+                threads.append(t)
 
-        for t in threads:
-            t.join()
+            for t in threads:
+                t.join()
 
-        while not q.empty():
-            closest_centroids.extend(q.get())
+            while not q.empty():
+                closest_centroids.extend(q.get())
 
-        for ix, elem in enumerate(closest_centroids):
-            a = self.A[ix]
-            self.current_centroids[elem].puntos.append((a[0], a[1]))
-            self.current_centroids[elem].capacidades.append(a[2])
+            for ix, elem in enumerate(closest_centroids):
+                a = self.A[ix]
+                self.current_centroids[elem].puntos.append((a[0], a[1]))
+                self.current_centroids[elem].capacidades.append(a[2])
 
-        self.distance_matrix = np.array(self.distance_matrix)
+            self.distance_matrix = np.array(self.distance_matrix)
 
-        return self.eval_std_dist(self.current_centroids), self.eval_std_weight(
-            self.current_centroids
-        )
+            f1.append(self.eval_std_dist(self.current_centroids))
+            f2.append(self.eval_std_weight(self.current_centroids))
+            self.distance_matrix = []
+
+        return f1, f2
 
     def _evaluate(self, x: dict, out: dict, *args, **kwargs):
-        if isinstance(self.distance_matrix, np.ndarray):
-            f1, f2 = self.__one_centroid_changed(x)
-        else:
-            f1, f2 = self.__calc_all_centroids(x)
+        f1, f2 = self.__calc_all_centroids(x)
 
-        out["F"] = [f1, f2]
+        out["F"] = np.column_stack([f1, f2])
 
 
 def read_data(filename: str) -> pd.DataFrame:
@@ -288,8 +293,8 @@ if __name__ == "__main__":
     df = read_data("data/INEGI_hidalgo.csv")
     problem = Clustering_Balandeado(df, k=4, n_var=8, n_obj=2)
 
-    algorithm = NSGA2(pop_size=100)
-    res = minimize(problem, algorithm, "n_gen", seed=1, verbose=False)
+    algorithm = NSGA2(pop_size=5)
+    res = minimize(problem, algorithm, "n_gen", seed=1, verbose=True)
 
     plot = Scatter()
     plot.add(problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
