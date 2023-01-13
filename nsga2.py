@@ -301,20 +301,27 @@ def read_data(filename: str) -> pd.DataFrame:
 @click.option(
     "--pop-size", type=int, required=True, help="The poplulation size for NSGA-II"
 )
-@click.option("--data", type=str, required=True, help="path of the dataset to use")
+@click.option("--data", type=str, required=True, help="Path of the dataset to use")
 @click.option(
     "--seed",
     type=int,
     required=False,
     default=None,
-    help="seed for the random number generator",
+    help="Seed for the random number generator",
 )
-def run(data: str, pop_size: int, seed: int):
+@click.option(
+    "--n_eval_termination",
+    type=int,
+    required=False,
+    default=300,
+    help="Parameter for number of objective function termination",
+)
+def run(data: str, pop_size: int, seed: int, n_eval_termination: int):
     df = read_data(data)
     problem = Clustering_Balandeado(df, k=4, n_var=8, n_obj=2)
 
     algorithm = NSGA2(pop_size=pop_size)
-    termination = get_termination("n_eval", 300)
+    termination = get_termination("n_eval", n_eval_termination)
     res = minimize(problem, algorithm, termination, seed=seed, verbose=True)
     dt_string = datetime.now().strftime("%d%m%Y%H%M")
 
