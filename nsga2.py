@@ -8,9 +8,11 @@ import funciones_paralelas as fp
 import queue
 import multiprocessing as mp
 import sys
+import click
 
-from typing import Union, List, Tuple
+from datetime import datetime
 from classes import centroide
+from typing import Union, List, Tuple
 from threading import Thread
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
@@ -18,6 +20,11 @@ from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
 from pymoo.core.problem import Problem
 from pymoo.termination import get_termination
+
+
+@click.group()
+def cli():
+    pass
 
 
 class Clustering_Balandeado(Problem):
@@ -290,20 +297,39 @@ def read_data(filename: str) -> pd.DataFrame:
     return dataset
 
 
-if __name__ == "__main__":
-    df = read_data("data/INEGI_hidalgo.csv")
+@cli.command("run")
+@click.option(
+    "--pop-size", type=int, required=True, help="The poplulation size for NSGA-II"
+)
+@click.option("--data", type=str, required=True, help="path of the dataset to use")
+@click.option(
+    "--seed",
+    type=int,
+    required=False,
+    default=None,
+    help="seed for the random number generator",
+)
+def run(data: str, pop_size: int, seed: int):
+    df = read_data(data)
     problem = Clustering_Balandeado(df, k=4, n_var=8, n_obj=2)
 
-    algorithm = NSGA2(pop_size=50)
+    algorithm = NSGA2(pop_size=pop_size)
     termination = get_termination("n_eval", 300)
-    res = minimize(problem, algorithm, termination, seed=1, verbose=True)
-
-    with open(f"pareto_nsgaii.txt", "w+") as f:
-        f.write(problem.pareto_front())
-        f.write("\n")
-        f.write(res.F)
+    res = minimize(problem, algorithm, termination, seed=seed, verbose=True)
+    dt_string = datetime.now().strftime("%d%m%Y%H%M")
 
     plot = Scatter()
     plot.add(problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
     plot.add(res.F, facecolor="none", edgecolor="red")
-    plot.show()
+    plot.save(f"nsga_2_front_{dt_string}")
+
+    with open(f"pareto_nsgaii_{dt_string}.txt", "w+") as f:
+        f.write(str(problem.pareto_front()))
+        f.write("\n")
+        f.write(str(res.F))
+
+
+cli.add_command(run)
+
+if __name__ == "__main__":
+    cli()
