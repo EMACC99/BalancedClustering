@@ -294,9 +294,14 @@ if __name__ == "__main__":
     df = read_data("data/INEGI_hidalgo.csv")
     problem = Clustering_Balandeado(df, k=4, n_var=8, n_obj=2)
 
-    algorithm = NSGA2(pop_size=5)
-    termination = get_termination("n_gen", 50)
+    algorithm = NSGA2(pop_size=50)
+    termination = get_termination("n_eval", 300)
     res = minimize(problem, algorithm, termination, seed=1, verbose=True)
+
+    with open(f"pareto_nsgaii.txt", "w+") as f:
+        f.write(problem.pareto_front())
+        f.write("\n")
+        f.write(res.F)
 
     plot = Scatter()
     plot.add(problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
