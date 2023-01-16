@@ -55,8 +55,8 @@ class Clustering_Balandeado(Problem):
         else:
             self.eval_std_dist = self.eval_std_dist_more_cpu
 
-        xl = np.array([df["lat"].iloc[0], df["lon"].iloc[-1]] * k)
-        xu = np.array([df["lat"].iloc[-1], df["lon"].iloc[0]] * k)
+        xl = np.array([df["lat"].min(), df["lon"].min()] * k)
+        xu = np.array([df["lat"].max(), df["lon"].max()] * k)
 
         super().__init__(n_var=n_var, n_obj=n_obj, xl=xl, xu=xu)
 
